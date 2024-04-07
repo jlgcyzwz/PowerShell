@@ -16,120 +16,57 @@ function global:Release-ComObject
         $Object
     )
     if($PSCmdlet.ShouldProcess($Object, 'ReleaseComObject')) {
-        $count = [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Object)
-        Write-Verbose ('ReleaseComObjectの戻り値={0}' -f $count)
-        $count
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Object)
     }
 }
 
-
 <#
- フォルダ取得
+ ユーザーシェルフォルダ取得
 #>
-function global:Get-Folder
+function global:Get-UserShellFolder
 {
     [CmdletBinding()]
-    [OutputType([String])]
     param
     (
+        [Parameter(Mandatory=$false, 
+                   Position=0)]
+        [string]$Name
     )
 
-    $shell = New-Object -ComObject Shell.Application
-    try {
-        Get-ChildItem HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FolderDescriptions | Get-ItemProperty | ? {
-            (($_ | Get-Member -MemberType NoteProperty) | % { $_.Name }) -contains 'Name'
-        } | ? {
-            $namespace = $shell.Namespace(('shell:{0}') -f $_.Name)
+    if ($Name) {
+        $shell = New-Object -ComObject Shell.Application
+        try {
+            $namespace = $shell.Namespace(('shell:{0}') -f $Name)
             if ($namespace) {
-                Test-Path $namespace.Self.Path
+                $namespace.Self.Path
                 $namespace | Release-ComObject | Out-Null
-            } else {
-                $false
             }
-        } | Select-Object -Property Name, Icon | Sort-Object Name
+        }
+        finally {
+            $shell | Release-ComObject | Out-Null
+            $shell = $null
+        }
     }
-    finally {
-        $shell | Release-ComObject | Out-Null
-        $shell = $null
+    else {
+        Get-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
     }
 }
 
 <#
  フォルダパス取得
 #>
-function global:Get-FolderPath
+function global:Get-Folder
 {
-    [CmdletBinding(DefaultParameterSetName='Environment')]
     [OutputType([String])]
     Param
     (
         [Parameter(Mandatory=$false, 
-                   Position=0,
-                   ParameterSetName='Environment')]
-        [System.Environment+SpecialFolder]
-        $SpecialFolder,
-
-        [Parameter(Mandatory=$false, 
-                   Position=0,
-                   ParameterSetName='Shell')]
-        [string]
-        $ShellName
-    )
-
-    switch($PSCmdlet.ParameterSetName) {
-        'Environment' {
-            [Environment]::GetFolderPath($SpecialFolder)
-        }
-        'Shell' {
-            $shell = New-Object -ComObject Shell.Application
-            try {
-                $shell.Namespace(('shell:{0}') -f $ShellName).Self.Path
-            }
-            finally {
-                $shell | Release-ComObject | Out-Null
-                $shell = $null
-            }
-        }
-    }
-}
-
-<#
- コマンドライン引数を作成
-#>
-function global:New-ComandlineArguments
-{
-    [CmdletBinding()]
-    [OutputType([String])]
-    Param
-    (
-        # 引数
-        [Parameter(Mandatory=$true, 
-                   ValueFromPipeline=$true,
                    Position=0)]
-        [string[]]
-        $Arguments
+        [System.Environment+SpecialFolder]
+        $SpecialFolder
     )
 
-    Begin
-    {
-        $args = @()
-    }
-    Process
-    {
-        $args += $Arguments
-    }
-    End
-    {
-        ($args | % {
-            #とりあえず今は単純に空白を含むなら"で囲む
-            if ($_.Contains(' ')) {
-                '"{0}"' -f $_
-            }
-            else {
-                $_
-            }
-        }) -join ' '
-    }
+    [Environment]::GetFolderPath($SpecialFolder)
 }
 
 <#
@@ -160,8 +97,7 @@ function global:New-Shortcut
         $ShortcutType,
 
         # ディレクトリ
-        [Parameter(Mandatory=$false, 
-                   Position=3)]
+        [Parameter(Mandatory=$false)]
         [string]
         $Directory,
 
@@ -210,12 +146,7 @@ function global:New-Shortcut
             try {
                 $shortcut.TargetPath = $TargetPath
                 if ($ShortcutType -eq 'Lnk') {
-                    if ($IconLocation) {
-                        $shortcut.IconLocation = $IconLocation
-                    }
-                    else {
-                        $shortcut.IconLocation = '{0},0' -f $TargetPath
-                    }
+                    if ($IconLocation) { $shortcut.IconLocation = $IconLocation }
                     if (![string]::IsNullOrEmpty($Arguments)) { $shortcut.Arguments = $Arguments }
                     if (![string]::IsNullOrEmpty($WorkingDirectory)) { $shortcut.WorkingDirectory = $WorkingDirectory }
                     if (![string]::IsNullOrEmpty($Description)) { $shortcut.Description = $Description }
@@ -246,7 +177,7 @@ function global:New-Shortcut
 #>
 function global:Get-PowerShellPath
 {
-    [CmdletBinding(SupportsShouldProcess=$true)]
+    [CmdletBinding()]
     [OutputType([string])]
     param
     (
@@ -256,26 +187,21 @@ function global:Get-PowerShellPath
         $Ise
     )
 
-    $name = if ($Ise.IsPresent) { 'powershell_ise' } else { 'powershell' }
-    $process = Get-Process -Name $name -ErrorAction SilentlyContinue | ? { ![string]::IsNullOrEmpty($_.Path) } | Select-Object -First 1
-    if ($process) {
-        $process.Path
-    } else {
-        $path = $null
-        while(!$path) {
-            Start-Process $name -WindowStyle Hidden
-            while(($process = Get-Process -Name $name -ErrorAction SilentlyContinue | ? { ![string]::IsNullOrEmpty($_.Path) } | Select-Object -First 1) -eq $null) {
-                Start-Sleep -Milliseconds 1
-            }
-            $path = $process.Path
-            $process | Stop-Process
-        }
+    $name = if ($Ise.IsPresent) { 'powershell_ise.exe' } else { 'powershell.exe' }
+    $path = Join-Path $PSHOME $name
+    if (Test-Path $path) {
         $path
+    } else {
+        $env:Path -split ';' | % {
+            Join-Path $_ $name
+        } | ? {
+            Test-Path $_
+        } | Select-Object -First 1
     }
 }
 
 
- <#
+<#
  PowerShellショートカットを作成
 #>
 function global:New-PowerShellShortcut
@@ -295,10 +221,12 @@ function global:New-PowerShellShortcut
         [string]
         $Directory,
 
+        # 実行ポリシー
         # 引数
         [Parameter(Mandatory=$false)]
+        [ValidateSet('AllSigned', 'Bypass', 'Default', 'RemoteSigned', 'Restricted', 'Undefined', 'Unrestricted')]
         [string]
-        $Arguments,
+        $ExecutionPolicy,
 
         # 作業フォルダー
         [Parameter(Mandatory=$false)]
@@ -331,17 +259,24 @@ function global:New-PowerShellShortcut
         $Name = if (!$Ise.IsPresent) { 'PowerShell' } else { 'PowerShell ISE' }
     }
 
-    $powerShellPath = ''
-    $powerShellPath = Get-PowerShellPath
-
+    $path = Get-PowerShellPath
     if (!$Ise.IsPresent) {
-        New-Shortcut $powerShellPath $Name -ShortcutType Lnk -Arguments '-ExecutionPolicy RemoteSigned'
+        $arguments = if ($ExecutionPolicy) {
+            '-ExecutionPolicy {0}' -f $ExecutionPolicy
+        } 
+        else {
+            $null
+        }
+        New-Shortcut $path $Name -ShortcutType Lnk -Directory $Directory -IconLocation ('{0},0' -f $path) -Arguments $arguments -WorkingDirectory $WorkingDirectory -Description $Description -HotKey $HotKey -WindowStyle $WindowStyle
     }
     else {
-        $isePath = Get-PowerShellPath -Ise
-        New-Shortcut $powerShellPath $Name -ShortcutType Lnk -IconLocation $isePath -Arguments '-ExecutionPolicy RemoteSigned -Command Start-Process powershell_ise' -WindowStyle 最小化
+        $pathIse = Get-PowerShellPath -Ise
+        $arguments = if ($ExecutionPolicy) {
+            '-ExecutionPolicy {0} -Command Start-Process powershell_ise' -f $ExecutionPolicy
+        } 
+        else {
+            '-Command Start-Process powershell_ise'
+        }
+        New-Shortcut $path $Name -ShortcutType Lnk -Directory $Directory -IconLocation ('{0},0' -f $pathIse) -Arguments $arguments -WorkingDirectory $WorkingDirectory -Description $Description -HotKey $HotKey -WindowStyle 最小化
     }
 }
-
-New-PowerShellShortcut -Verbose
-New-PowerShellShortcut -Ise -Verbose
