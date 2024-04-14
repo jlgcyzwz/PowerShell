@@ -52,7 +52,7 @@ public class InputSimulator
     public const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;		// 座標をデスクトップ全体にマップします。 MOUSEEVENTF_ABSOLUTEで使用する必要があります。
     public const uint MOUSEEVENTF_ABSOLUTE = 0x8000;		// dx メンバーと dy メンバーには、正規化された絶対座標が含まれています。 フラグが設定されていない場合、 dxと dy には相対データ (最後に報告された位置以降の位置の変化) が含まれます。 このフラグは、システムに接続されているマウスやその他のポインティング デバイスの種類に関係なく、設定することも設定することもできません。 相対的なマウスの動きの詳細については、次の「解説」セクションを参照してください。
 
-    public static void SendMouse(int dx, int dy, uint mouseData, uint dwFlags)
+    public static uint SendMouse(int dx, int dy, uint mouseData, uint dwFlags)
     {
         INPUT[] input = new INPUT[1];
         input[0].Type = INPUT_MOUSE;
@@ -60,8 +60,11 @@ public class InputSimulator
         input[0].mi.dy = dy;
         input[0].mi.mouseData = mouseData;
         input[0].mi.dwFlags = dwFlags;
-        SendInput(1, input, Marshal.SizeOf(typeof(INPUT)));
+        return SendInput(1, input, Marshal.SizeOf(typeof(INPUT)));
     }
 }
 '@
 
+Start-Sleep -Seconds 1
+[InputSimulator]::SendMouse(0, 0, 0, [InputSimulator]::MOUSEEVENTF_RIGHTDOWN)
+[InputSimulator]::SendMouse(0, 0, 0, [InputSimulator]::MOUSEEVENTF_RIGHTUP)

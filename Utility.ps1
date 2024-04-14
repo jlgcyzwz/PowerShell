@@ -1,26 +1,4 @@
 <#
- COMオブジェクト開放
-#>
-function global:Release-ComObject
-{
-    [CmdletBinding(SupportsShouldProcess=$true)]
-    [OutputType([int])]
-    Param
-    (
-        #COMオブジェクト
-        [Parameter(Mandatory=$true, 
-                   ValueFromPipeline=$true,
-                   Position=0)]
-        [ValidateNotNull()]
-        [object]
-        $Object
-    )
-    if($PSCmdlet.ShouldProcess($Object, 'ReleaseComObject')) {
-        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Object)
-    }
-}
-
-<#
  ユーザーシェルフォルダ取得
 #>
 function global:Get-UserShellFolder
@@ -39,12 +17,15 @@ function global:Get-UserShellFolder
             $namespace = $shell.Namespace(('shell:{0}') -f $Name)
             if ($namespace) {
                 $namespace.Self.Path
-                $namespace | Release-ComObject | Out-Null
+                [System.Runtime.InteropServices.Marshal]::ReleaseComObject($namespace) | Out-Null
+                $namespace = $null
             }
         }
         finally {
-            $shell | Release-ComObject | Out-Null
-            $shell = $null
+            if ($shell) {
+                [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
+                $shell = $null
+            }
         }
     }
     else {
@@ -160,14 +141,16 @@ function global:New-Shortcut
             }
             finally {
                 if ($shortcut) {
-                    $shortcut | Release-ComObject | Out-Null
+                    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shortcut) | Out-Null
                     $shortcut = $null
                 }
             }
         }
         finally {
-            $shell | Release-ComObject | Out-Null
-            $shell = $null
+            if ($shell) {
+                [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
+                $shell = $null
+            }
         }
     }
  }
