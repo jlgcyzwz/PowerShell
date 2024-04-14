@@ -36,7 +36,7 @@ function global:Get-UserShellFolder
 <#
  フォルダパス取得
 #>
-function global:Get-Folder
+function global:Get-FolderPath
 {
     [OutputType([String])]
     Param
@@ -114,15 +114,15 @@ function global:New-Shortcut
         $WindowStyle = '通常のウィンドウ'
     )
 
+    $path = switch($ShortcutType) { 'Lnk' { '{0}.lnk' -f $Name  } 'Url' { '{0}.url' -f $Name } }
+    if ([string]::IsNullOrEmpty($Directory)) {
+        $path = Join-Path (Convert-Path .) $path
+    } else {
+        $path = Join-Path $Directory $path
+    }
     if($PSCmdlet.ShouldProcess($path, 'ショートカット作成')) {
         $shell = New-Object -comObject WScript.Shell
         try {
-            $path = switch($ShortcutType) { 'Lnk' { '{0}.lnk' -f $Name  } 'Url' { '{0}.url' -f $Name } }
-            if ([string]::IsNullOrEmpty($Directory)) {
-                $path = Join-Path (Convert-Path .) $path
-            } else {
-                $path = Join-Path $Directory $path
-            }
             $shortcut = $shell.CreateShortcut($path)
             try {
                 $shortcut.TargetPath = $TargetPath
