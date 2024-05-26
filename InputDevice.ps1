@@ -507,14 +507,17 @@ function global:Send-Keys
     Param
     (
         [Parameter(Mandatory=$true, 
-                   Position=0)]
+                   Position=0,
+                   ValueFromPipeline=$true)]
         [string]
         $Keys
     )
 
     if ($pscmdlet.ShouldProcess('アクティブなアプリケーション', ('{0}を送信' -f $Keys)))
     {
-        [System.Windows.Forms.SendKeys]::SendWait($Keys)
+        $input | % {
+            [System.Windows.Forms.SendKeys]::SendWait($_)
+        }
     }
 }
 
