@@ -49,7 +49,7 @@ public static class UIAutoElement
 <#
  AutomationElement 取得
 #>
-function Get-AutoElement
+function global:Get-AutoElement
 {
     [CmdletBinding(DefaultParameterSetName='Find')]
     [Alias()]
@@ -208,7 +208,7 @@ function Get-AutoElement
 <#
  パターン取得
 #>
-function Get-AutoPattern
+function global:Get-AutoPattern
 {
     [CmdletBinding()]
     [Alias()]
